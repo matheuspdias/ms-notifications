@@ -23,10 +23,10 @@ export class NotificationsController {
 
   constructor(private readonly notificationsService: NotificationsService) {}
 
-  @EventPattern('user.created')
+  @EventPattern('user.registered')
   async handleUserCreated(@Payload() data: UserCreatedEvent): Promise<void> {
     this.logger.log(
-      `Event received: user.created | event_id=${data.event_id} | email=${data.payload.email}`,
+      `Event received: user.registered | event_id=${data.event_id} | email=${data.payload.email}`,
     );
 
     await this.notificationsService.notifyUserCreated(
