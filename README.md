@@ -24,6 +24,7 @@ src/
 │   ├── mail.module.ts               # Módulo de e-mail
 │   └── mail.service.ts              # Nodemailer + Mailtrap
 │
+├── rabbitmq.deserializer.ts         # Deserializer customizado para mensagens Laravel
 ├── app.module.ts
 └── main.ts                          # Bootstrap como NestJS Microservice via RMQ
 ```
@@ -31,21 +32,26 @@ src/
 ## Fluxo
 
 ```
-ms-producer (Laravel)
-       │ publica evento user.created
+ms-users (Laravel)
+       │ publica evento user.registered (somente após persistência confirmada)
        ▼
-   RabbitMQ ──── fila: user_events
+   RabbitMQ ──── fila: notification_events
        │ consome
        ▼
 ms-notifications (NestJS)
-       │ @EventPattern('user.created')
+       │ @EventPattern('user.registered')
        ▼
   MailService → Mailtrap (e-mail de boas-vindas)
 ```
 
+> O ms-notifications escuta `user.registered` (publicado pelo ms-users após salvar no banco),
+> não `user.created` (publicado pelo ms-producer). Isso garante que o e-mail só é enviado
+> quando o cadastro foi realmente persistido.
+
 ## Pré-requisitos
 
 - RabbitMQ rodando via [microservices-infra](https://github.com/matheuspdias/microservices-infra)
+- ms-users rodando via [matheuspdias/ms-users](https://github.com/matheuspdias/ms-users)
 - Conta no [Mailtrap](https://mailtrap.io) para capturar os e-mails
 
 ## Instalação
@@ -63,7 +69,7 @@ cp .env.example .env
 ```env
 # RabbitMQ
 RABBITMQ_URL=amqp://rabbit:rabbit@rabbitmq:5672
-RABBITMQ_QUEUE=user_events
+RABBITMQ_QUEUE=notification_events
 
 # Mailtrap SMTP
 MAIL_HOST=sandbox.smtp.mailtrap.io
@@ -86,23 +92,23 @@ docker compose up -d --build
 
 ## Eventos suportados
 
-| Evento | Ação |
-|---|---|
-| `user.created` | Envia e-mail de boas-vindas |
+| Evento | Fila | Origem | Ação |
+|---|---|---|---|
+| `user.registered` | `notification_events` | ms-users | Envia e-mail de boas-vindas |
 
 ### Formato esperado
 
 ```json
 {
-  "event_id": "user_656f8e4a5d1c83.12345678",
-  "event_type": "user.created",
+  "event_id": "notif_656f8e4a5d1c83.12345678",
+  "event_type": "user.registered",
   "timestamp": "2025-11-27T23:30:00Z",
   "payload": {
     "name": "João da Silva",
     "email": "joao.silva@example.com"
   },
   "metadata": {
-    "source": "ms-producer",
+    "source": "ms-users",
     "version": "1.0",
     "environment": "local"
   }
@@ -126,6 +132,7 @@ docker compose up -d --build
 
 - **NestJS Microservices** com transporte AMQP nativo
 - **`@EventPattern`** para consumir eventos de forma declarativa
+- **Deserializer customizado** para compatibilidade com mensagens publicadas por outros stacks (Laravel)
 - **Módulos e injeção de dependência** idiomáticos do NestJS
 - **TypeScript** com tipagem forte dos eventos
 - **Separação de responsabilidades** — Controller recebe, Service processa, MailService envia
