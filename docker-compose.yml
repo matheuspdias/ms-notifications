@@ -1,0 +1,15 @@
+services:
+  ms-notifications:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ms-notifications
+    restart: unless-stopped
+    env_file:
+      - .env
+    networks:
+      - microservices-net
+
+networks:
+  microservices-net:
+    external: true
